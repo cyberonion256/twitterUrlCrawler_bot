@@ -1,0 +1,180 @@
+/// Google Apps part of the bot (store to sheet, save/delete input)
+
+// Google inputs (webApps, Spreadsheet id)
+var webAppUrl = *** YOUR GOOGLE WEBAPPS URL ***;
+var ss_id = *** YOUR GOOGLE SPREADSHEETS ID ***;
+var sheet = SpreadsheetApp.openById(ss_id); // spreadsheet to store data 
+var sheet0 = sheet.getSheets()[0]; //saved_list
+var sheet1 = sheet.getSheets()[1]; //current_input
+var sheet2 = sheet.getSheets()[2]; //command_storage
+var sheet3 = sheet.getSheets()[3]; //logging
+var folder_id = *** YOUR GOOGLE DRIVE FOLDER ID ***; // Google Drive folder id to store copys of URLs
+var admin_mail = *** YOUR ADMIN EMAIL *** // set an email to receive JSON input (for debugging)
+
+// main function that is triggered by time intervals and executes Twitter search
+function main() {
+  var dat = getTweetsHomeTimeline(1);
+  // var dat = getTweetsForUser(*** TWITTER HANDLE OF ACCOUNT ***, 1); //debug tool to test with different tweets
+  // MailApp.sendEmail(admin_mail, "Debug twitter_url_crawler", JSON.stringify(dat[0], null, 4)); //debug tool to analyse JSON input
+  var response = storeTweet(dat);
+  Logger.log(response);
+  if (response) {
+    var msg = "Bingo! I found an URL on Twitter. Do you want to store it? \n"+
+      "\nDate: "+ response[0] + 
+        "\nUser: " + response[4] + 
+          "\nText: " + response[2] + 
+            "\nURL: " + response[3] + 
+              "\n\n Please, confirm with 'yes' or 'no'.";
+    sendHTMLtext(admin_id, msg);
+    Logger.log(response);
+  }
+}
+
+// Stores tweet in TwitterAPI-specific JSON format in Google Sheet (list of JSON object)
+function storeTweet(JSON_input){
+  var data = JSON_input[0]; //take the first tweet in the list
+  var tw_txt = data.full_text;
+  if (tw_txt.substring(0,2) == "RT"){
+  // Check if the tweet is a retweet, if so, use retweeted status instead
+    var tw_txt = data.retweeted_status.full_text;
+    var tw_date = data.retweeted_status.created_at;
+    var tw_id = data.retweeted_status.id_str;
+    var tw_usr = data.retweeted_status.user.screen_name;
+    if (data.retweeted_status.entities.urls[0]){
+    // Check if tweet contains an attached URL
+      var tw_url = data.retweeted_status.entities.urls[0].expanded_url;
+      var status_log = "success_rt"; // set log_type (retweet or normal url)
+    } else {
+      logCrawl(tw_date, tw_id, tw_usr, "no_url_rt");
+      return;
+    }
+  } else {
+    var tw_id = data.id_str;
+    var tw_date = data.created_at;
+    var tw_usr = data.user.screen_name;
+
+    if (data.entities.urls[0]){
+      var tw_url = data.entities.urls[0].expanded_url;
+      var status_log = "success";
+    } else {
+      logCrawl(tw_date, tw_id, tw_usr, "no_url");
+      return;
+    }
+  }
+  
+  var old_id = sheet3.getRange("B" + (sheet3.getLastRow())).getValues(); // take second last entry (as new entry is already logged)
+  if (tw_id == old_id){
+  // checks if the tweet has been pushed to the user already, if so abort process
+    logCrawl(tw_date, tw_id, tw_usr, "already_contained");
+    return;
+  }
+  
+  if (tw_url !== null && tw_url.indexOf("twitter")==-1){
+  // store tweet if there is an URL that does not come from twitter (3rd party content)
+    sheet1.getRange('A2').setValue(tw_date);
+    sheet1.getRange('B2').setValue(tw_id);
+    sheet1.getRange('C2').setValue(tw_txt);
+    sheet1.getRange('D2').setValue(tw_url);
+    sheet1.getRange('E2').setValue(tw_usr);
+    
+    sheet2.getRange('A2').setValue(command1);
+    sheet2.getRange('B2').setValue(admin_id);
+    
+    logCrawl(tw_date, tw_id, tw_usr, status_log);
+    return [tw_date, tw_id, tw_txt, tw_url, tw_usr];
+  }
+}
+
+function saveCurrent(){
+  var cell_content = sheet1.getRange("A2:E2").getValues();
+  var newRow = sheet0.getLastRow() + 1;
+  var rangeToPaste = sheet0.getRange(newRow, 1, 1, 5);
+  rangeToPaste.setValues(cell_content);
+}
+
+// deletes currently crawled input
+function deleteCurrent() {
+  sheet1.deleteRow(2);
+}
+
+// deletes command input
+function deleteCommand() {
+  sheet2.deleteRow(2);
+}
+
+// deletes latest saved input
+function deleteLatest() {
+  var row_num = sheet0.getLastRow();
+  var del_txt = sheet1.getRange("C"+row_num).getValues();
+  var del_url = sheet1.getRange("D"+row_num).getValues();
+  sheet0.deleteRow(row_num);
+  return del_txt, del_url;
+}
+
+// function to log the all tweet crawls regardless of them being saved or not
+function logCrawl(tweet_date, tweet_id, tweet_sender, status) {
+  var row_num = sheet3.getLastRow() + 1;
+  sheet3.getRange(row_num,1).setValue(tweet_date);
+  sheet3.getRange(row_num,2).setValue(tweet_id);
+  sheet3.getRange(row_num,3).setValue(tweet_sender);
+  sheet3.getRange(row_num,4).setValue(status);
+  sheet3.getRange(row_num,5).setValue(new Date());
+}
+
+
+
+// ############ time-based TRIGGERS ##############
+
+// function to create trigger that runs main function every 5 min
+function createTimeDrivenTriggers() {
+  ScriptApp.newTrigger('main')
+      .timeBased()
+      .everyMinutes(5)
+      .create();
+}
+
+// function to delete set trigger by triggerID
+function deleteTrigger(triggerId) {
+  // Loop over all triggers.
+  var allTriggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < allTriggers.length; i++) {
+    // If the current trigger is the correct one, delete it.
+    if (allTriggers[i].getUniqueId() === triggerId) {
+      ScriptApp.deleteTrigger(allTriggers[i]);
+      break;
+    }
+  }
+}
+
+
+// ############ url CAPTURE & STORE ##############
+
+// functions to grab HTML and store it to a Google Drive folder
+
+// grab HTML from given URL, returns html
+function getHTMLfromURL(url) {
+  var html = UrlFetchApp.fetch(url);
+  return html;
+}
+
+// stores HTML to Google Drive folder
+function StoreHtmlToDrive(html_input, file_title){
+  var folder = DriveApp.getFolderById(folder_id);
+  folder.createFile(file_title, html_input, MimeType.HTML);
+}
+
+// ############ url CAPTURE & STORE ##############
+
+function isolateURL(string) {
+  // this function isolates urls starting with HTTP and HTTPS from strings
+  var www = "www";
+  var http = "http";
+  var str_split = string.toLowerCase().split(/ |\n/);
+  
+  for (i = 0; i < str_split.length; i++) {
+    if (str_split[i].indexOf(http) !== -1 || str_split[i].indexOf(www) !== -1) {
+      var response = str_split[i];
+    }
+  }
+  return response;
+}

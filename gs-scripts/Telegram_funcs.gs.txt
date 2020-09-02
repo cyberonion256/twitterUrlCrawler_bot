@@ -1,0 +1,216 @@
+/// Telegram part of the bot (send Tweets for approval)
+
+// Telegram inputs (bot token, telegramURLapi)
+var token = *** YOUR TELEGRAM BOT TOKEN ***; 
+var telegramUrl = "https://api.telegram.org/bot" + token;
+
+// Telegram id of the admin that hosts the bot
+var admin_id = *** ADMIN TELEGRAM ID ***;
+
+// comand list
+var command1 = "/save_input"; // opens URL from Tweet storing processes and awaits confirmation
+var command2 = "/add_url"; // opens manual URL input process and awaits confirmation
+var command3 = "/cancel"; // cancels current input
+var command4 = "/delete"; // deletes the newest input into the saved_list
+var command98 = "/help"; // displays a help text.
+var command99 = "/start"; // Welcome greeting when starting the bot for the first time
+
+/*
+// Not yet implemented commands
+var command4 = "/startBot";
+var command5 = "/stopBot";
+var command6 = "/comment_add";
+*/
+
+// Checking bot status
+function getMe() {
+  var url = telegramUrl + "/getMe";
+  var response = UrlFetchApp.fetch(url);
+  Logger.log(response.getContentText());
+}
+
+// setting telegram webhook (to connect Google WebApp to bot)
+function setWebhook() {
+  var url = telegramUrl + "/setWebhook?url=" + webAppUrl;
+  var response = UrlFetchApp.fetch(url);
+  Logger.log(response.getContentText());
+}
+
+// deleting telegram webhook
+function deleteWebhook() {
+  var url = telegramUrl + "/deleteWebhook?url=" + webAppUrl;
+  var response = UrlFetchApp.fetch(url);
+  Logger.log(response.getContentText());
+}
+
+// interaction with bot (digest messages to bot and post reponses)
+function doPost(e) {
+  var data = JSON.parse(e.postData.contents); // parses the JSON input that has been sent to the bot
+  var text = data.message.text; // the actual message sent to the bot (as string)
+  var msg_id = data.message.message_id;
+  var sender_id = data.message.from.id;
+  var chat_id = data.message.chat.id;
+  var name = data.message.from.first_name + " " + data.message.from.last_name;
+  var date = data.message.date;
+  var input_key = sheet2.getRange('B2').getValue(); // user_id of person that sent commands to start an input
+  
+  if (input_key == sender_id || input_key == ""){ // checks if there is a non-finished input by another user
+      
+    if (text.split("")[0] == "/"){ // checks if input is a command (starts with '/')
+      var command = text.split(" ")[0];
+      sheet2.getRange('A2').setValue(command); // sets command in command storage and overwrites existing command
+      sheet2.getRange("B2").setValue(sender_id); // sets sender_id in command storage and overwrites existing sender_id 
+      
+      if (command == command1) {
+        sendText(sender_id, "You told me to save the suggested tweet. Please, confirm with 'Yes' or abort with '/cancel'. Thanks!")
+      }
+   
+      if (command == command2) {
+        sendText(sender_id, "Please, add a URL now.");
+      }
+      
+      if (command == command3) {
+        sendText(sender_id, "Do you want to cancel the current input? Please, confirm with 'Yes' or abort with 'No'.");
+      }
+      
+      if (command == command4) {
+        var row_num = sheet0.getLastRow();
+        var values = sheet0.getRange("A" + row_num + ":E" + row_num).getDisplayValues();
+        sendHTMLtext(sender_id, "This is the last saved input: \n\n" + values + "\n\nDo you want to delete it? Please, confirm with 'Yes' or abort with 'No'.");
+      }
+      
+      if (command == command4) {
+        var row_num = sheet0.getLastRow();
+        var values = sheet0.getRange("A" + row_num + ":E" + row_num).getDisplayValues();
+        sendHTMLtext(sender_id, "This is the last saved input: \n\n" + values + "\n\nDo you want to delete it? Please, confirm with 'Yes' or abort with 'No'.");
+      }
+      
+      
+      if (command == command99) {
+        sendText(sender_id, "Welcome! This bot requires some setup before you can start. Please, check github.com/guitarioo for details. Cheers!")
+      }
+
+      if (command == command98) {
+        sendText(sender_id, help_text);
+      } 
+      
+    } else {
+      var command = sheet2.getRange('A2').getDisplayValue();
+      var command_cell = sheet2.getRange('A2');
+    
+      if (command_cell.isBlank()) {
+        var URL_only = isolateURL(text);
+        if (URL_only) {
+          sendText_nopreview(sender_id, "I detected a URL (" + URL_only + "). Do you want to store it in your collection? Please, confirm with 'Yes' and decline with 'No'.");
+          sheet1.getRange('D2').setValue(URL_only);
+          sheet1.getRange('A2').setValue(date);
+          sheet1.getRange('E2').setValue(name);
+          sheet2.getRange('A2').setValue(command1);
+        } else{
+          sendText(sender_id, "Nothing happened.")
+        }
+      }
+      
+      if (command == command1) {
+        if (text.toLowerCase() == "yes") {
+          saveCurrent();
+          sendText(sender_id, "The information was saved.");
+          
+          var url = sheet1.getRange("D2").getValue();
+          var sender = sheet1.getRange("E2").getValue();
+          
+          try {
+            // tries to store a copy of the entered URL in a pre-specified Google Drive.
+            var file_title = "URLcapture_" + sender;
+            StoreHtmlToDrive(getHTMLfromURL(url), file_title);
+            sendText(sender_id, "I also saved a HTML copy of the URL to Google Drive.");
+          } catch(err) {
+            var response = Logger.log(err);
+            sendText(sender_id, "Notice: Failed to catch URL as HTML. (Error: " + response + ")");
+          }
+          
+          deleteCurrent();
+          deleteCommand();
+          
+        } else {
+          sendText(sender_id, "The information was NOT saved. Please, send 'Yes' to save or '/cancel' to delete.");
+        }
+      }
+        
+      if (command == command2) {
+        var URL_only = isolateURL(text);
+
+        if (URL_only !== undefined){ 
+          sendText_nopreview(sender_id, "You entered the following URL: " + URL_only + ". Please, save the input with 'Yes' or cancel with '/cancel'.");
+          sheet1.getRange('D2').setValue(URL_only);
+          sheet1.getRange('A2').setValue(date);
+          sheet1.getRange('E2').setValue(name);
+          sheet2.getRange('A2').setValue(command1);
+        } else {
+          sendText(sender_id, "I did not recognise an URL in the post. Please make sure to include 'http', 'https', or 'www'.")
+        }        
+      }
+            
+      if (command == command3) {
+        if (text.toLowerCase() == "yes") {
+          sendText(sender_id, "The process was canceled and the current input deleted.");
+          
+          deleteCurrent();
+          deleteCommand();
+          
+        } else {
+          sendText(sender_id, "Cancellation aborted. You can proceed with your input. Please, remember to use commands.");
+        }
+      }
+      
+      if (command == command4) {
+        if (text.toLowerCase() == "yes") {
+          sendText(sender_id, "The latest, saved input was deleted.");
+          
+          deleteLatest();
+          deleteCommand();
+          
+        } else {
+          sendText(sender_id, "Deletion process aborted.");
+        }
+      }
+         
+
+    } // else 2n level  
+      
+  } else {
+    
+    sendText(sender_id, "Another user is currently using the transferbot. You cannot enter information. We will ask the other user to finish the input. Please, try again later.");
+    sendText(input_key, "Another user wants to use the transferbot. Please, finish your input as soon as possible (with /end_input) or cancel (with /cancel). Thank you!");
+    
+  } // else 1st level
+
+} // function
+
+
+// help text (passed back if help command is sent)
+var help_text = "Hello user! This radar bot allows you to pull tweets from your (or another users) timeline and store attached URLs in a Google Spreadsheet. Make sure to check github.com/guitarioo for setting up the bot and connecting it to Twitter. Version 0.1"
+
+// ################ SEND FUNCTIONS ###########
+
+// regular text
+function sendText(id, text) {
+  var url = telegramUrl + "/sendMessage?chat_id=" + id + "&text=" + text;
+  var response = UrlFetchApp.fetch(url);
+  // Logger.log(response.getContentText());
+}
+
+// html text
+function sendHTMLtext(id, text) {
+  var input = encodeURIComponent(text)
+  var url = telegramUrl + "/sendMessage?chat_id=" + id + "&text=" + input + "&parse_mode=html";
+  var response = UrlFetchApp.fetch(url );
+  // Logger.log(response.getContentText());
+}
+
+// text without link preview (for URL)
+function sendText_nopreview(id, text) {
+  var url = telegramUrl + "/sendMessage?chat_id=" + id + "&text=" + text +"&disable_web_page_preview=true";
+  var response = UrlFetchApp.fetch(url);
+  // Logger.log(response.getContentText());
+}
