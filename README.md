@@ -99,7 +99,7 @@ If you want to do if fully manually, check out the trigger functions in the Goog
 
 ## Start off = customize to your own needs
 
-Take a closer look at the doPost() function in the Telegram-funcs sheet, as it stores everything you want the bot to do on the telegram side. Whenever it comes to storing information in a Spreadsheet, you're well advised to check out the GoogleAppsScript-funcs sheet. With little programming skills, you can start adapting the TwitterUrlCrawler bot to your own needs. Make sure to always select the appropriate cells in the Spreadsheet as it works as your temporary (Worksheet 2 + 3) and permanent storage. 
+Take a closer look at the doPost() function in the Telegram-funcs sheet, as it stores everything you want the bot to do on the telegram side. Whenever it comes to storing information in a Spreadsheet, you're well advised to check out the GoogleAppsScript-funcs sheet. With little programming skills, you can start adapting the TwitterUrlCrawler bot to your own needs. Make sure to always select the appropriate cells in the Spreadsheet as it works as your temporary (Worksheet 2 + 3) and permanent storage (Worksheet 1 + 4). 
 
 Have fun!
 
