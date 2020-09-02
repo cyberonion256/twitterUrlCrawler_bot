@@ -9,7 +9,7 @@ This TwitterUrlCrawler bot allows you to pull tweets from your feed or other use
 - **Simple syntax**: The core element of the bot relies only on if-else statements and is understandable also to programming beginners
 - **Easy to install, free of charge, 24/7 readiness**
 
-## 1. Initizalization
+## Initizalization
 
 - Set up a telegram bot with @BotFather (relevant information: bot token), see here: https://core.telegram.org/bots
 - Set up new Google Spreadsheet (relevant information: webApp url, Spreadsheet id)
@@ -19,7 +19,7 @@ This TwitterUrlCrawler bot allows you to pull tweets from your feed or other use
 >> Setting up the Telegram and Google Apps Script part follows this YouTube tutorial: https://www.youtube.com/watch?v=mKSXd_od4Lg 
 >> Setting up the Twitter API follows this YouTube tutorial: https://www.youtube.com/watch?v=2o_qt9cXicM
 
-## 2. Prepare Google Spread Sheet
+## Prepare Google Spread Sheet
 
 The bot in its current specification is written to fill the attached spread sheet [Template](docs/TwitterUrlCrawler_timeline.xls). The provided template consistes of four worksheets:
 - *Worksheet 1 "saved_list":* This is where the approved URLs are stored; the columns must match those of Worksheet 2 "current_input".
